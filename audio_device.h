@@ -5,7 +5,10 @@
 extern "C" {
 #endif
 
-enum audio_device_type;
+enum audio_device_type {
+	INPUT = 0,
+	OUTPUT,
+};
 typedef enum audio_device_type audio_device_type_t;
 
 struct audio_device;
@@ -31,8 +34,8 @@ int audio_device_get_rate(audio_device_t *device);
 int audio_device_get_channel(audio_device_t *device);
 int audio_device_get_bit_depth(audio_device_t *device);
 
-char *audio_device_read(audio_device_t *device, size_t *size);
-void audio_device_write(audio_device_t *device, char *buffer, size_t size);
+unsigned int audio_device_read(audio_device_t *device, void *buffer, unsigned int frame);
+void audio_device_write(audio_device_t *device, void *buffer, unsigned int frame);
 
 #ifdef __cpluscplus
 }
@@ -48,17 +51,10 @@ void audio_device_write(audio_device_t *device, char *buffer, size_t size);
 
 #include <alsa/asoundlib.h>
 
-#define AUDIO_DEVICE_AUDIO_DEVICE_FRAMES (128)
-
-enum audio_device_type {
-	INPUT = 0,
-	OUTPUT,
-};
-
 struct audio_device {
+	audio_device_type_t type;
 	snd_pcm_t *device_handle;
 	snd_pcm_hw_params_t *hw_params;
-	char *buffer;
 	const char *device_name;
 	int rate;
 	int channel;
@@ -71,10 +67,9 @@ struct audio_device {
 
 audio_device_t *audio_device_create(const char *device_name) {
 	audio_device_t *device = NULL;
-	device = calloc(1, sizeof(*device));
+	device = (audio_device_t *) calloc(1, sizeof(*device));
 
 	device->device_name = device_name;
-	device->buffer = calloc(1, 1024);
 
 	return device;
 }
@@ -84,7 +79,6 @@ void audio_device_destroy(audio_device_t *device) {
 
 	audio_device_close(device);
 
-	free(device->buffer);
 	free(device);
 }
 
@@ -97,6 +91,7 @@ int audio_device_open(audio_device_t *device, audio_device_type_t type) {
 	} else {
 		stream_type = SND_PCM_STREAM_PLAYBACK;
 	}
+	device->type = type;
 
 	// block open
 	int ret = snd_pcm_open(
@@ -109,16 +104,18 @@ int audio_device_open(audio_device_t *device, audio_device_type_t type) {
 			device->device_name, snd_strerror(ret));
 		return 0;
 	}
-	
+
 	return 1;
 }
 
 void audio_device_close(audio_device_t *device) {
 	if (device->device_handle != NULL) {
-		int err = snd_pcm_drain(device->device_handle);
-		if (err < 0) {
-			printf("snd_pcm_drain failed: %s\n",
-			       snd_strerror(err));
+		if (device->type == OUTPUT) {
+			int err = snd_pcm_drain(device->device_handle);
+			if (err < 0) {
+				printf("snd_pcm_drain failed: %s\n",
+				       snd_strerror(err));
+			}
 		}
 		snd_pcm_close(device->device_handle);
 	}
@@ -129,7 +126,7 @@ void audio_device_set_begin(audio_device_t *device) {
 
 	// 分配硬件参数结构体
 	snd_pcm_hw_params_malloc(&device->hw_params);
-	
+
 	// 初始化硬件参数结构体
 	snd_pcm_hw_params_any(device->device_handle, device->hw_params);
 
@@ -166,15 +163,15 @@ void audio_device_set_bit_depth(audio_device_t *device, int bit_depth) {
 		case 8: {
 			format = SND_PCM_FORMAT_U8;
 			break;
-		}	
+		}
 		case 16: {
-			format = SND_PCM_FORMAT_U16_LE;
+			format = SND_PCM_FORMAT_S16_LE;
 			break;
-		}	
+		}
 		case 32: {
-			format = SND_PCM_FORMAT_U32_LE;
+			format = SND_PCM_FORMAT_S32_LE;
 			break;
-		}	
+		}
 	}
 
 	snd_pcm_hw_params_set_format(
@@ -278,39 +275,40 @@ int audio_device_get_bit_depth(audio_device_t *device) {
 	return device->bit_depth;
 }
 
-char *audio_device_read(audio_device_t *device, size_t *size) {
+unsigned int audio_device_read(audio_device_t *device, void *buffer, unsigned int frame) {
 	assert(device != NULL);
 
 	int ret = snd_pcm_readi(
 		device->device_handle,
-		device->buffer,
-		AUDIO_DEVICE_AUDIO_DEVICE_FRAMES);
+		buffer,
+	        frame);
 	if (ret == -EPIPE) {
 		fprintf(stderr, "overrun occurred\n");
 		snd_pcm_prepare(device->device_handle);
+		goto fail;
 	} else if (ret < 0) {
 		fprintf(stderr, "Cannot read data from device: %s\n",
 			snd_strerror(ret));
-	} else if (ret != AUDIO_DEVICE_AUDIO_DEVICE_FRAMES) {
+		goto fail;
+	} else if (ret != frame) {
 		fprintf(stderr, "short read, read %d frames\n", ret);
-		*size = ret;
-		return device->buffer;
-	} else {
-		*size = ret;
-		return device->buffer;
 	}
 
-	*size = 0;
-	return NULL;
+	return ret;
+fail:
+	return 0;
 }
 
-void audio_device_write(audio_device_t *device, char *buffer, size_t size) {
+void audio_device_write(audio_device_t *device, void *buffer, unsigned int frame) {
 	assert(device != NULL);
+
+	int channel = device->channel;
+	int byte_size = device->bit_depth / 8;
 
 	int ret = snd_pcm_writei(
 		device->device_handle,
 		buffer,
-		size);
+		frame * channel * byte_size);
 	if (ret < 0) {
 		ret = snd_pcm_recover(device->device_handle, ret, 0);
 	}
