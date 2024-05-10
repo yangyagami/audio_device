@@ -302,14 +302,12 @@ fail:
 void audio_device_write(audio_device_t *device, void *buffer, unsigned int frame) {
 	assert(device != NULL);
 
-	int channel = device->channel;
-	int byte_size = device->bit_depth / 8;
-
 	int ret = snd_pcm_writei(
 		device->device_handle,
 		buffer,
-		frame * channel * byte_size);
+		frame);
 	if (ret < 0) {
+		fprintf(stderr, "Ret less then 0, do recover\n");
 		ret = snd_pcm_recover(device->device_handle, ret, 0);
 	}
 	if (ret < 0) {
