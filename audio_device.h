@@ -55,7 +55,7 @@ struct audio_device {
 	audio_device_type_t type;
 	snd_pcm_t *device_handle;
 	snd_pcm_hw_params_t *hw_params;
-	const char *device_name;
+	char device_name[256];
 	int rate;
 	int channel;
 	int bit_depth;
@@ -69,7 +69,7 @@ audio_device_t *audio_device_create(const char *device_name) {
 	audio_device_t *device = NULL;
 	device = (audio_device_t *) calloc(1, sizeof(*device));
 
-	device->device_name = device_name;
+	strcpy(device->device_name, device_name);
 
 	return device;
 }
