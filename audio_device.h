@@ -212,7 +212,7 @@ void audio_device_set_period_time(audio_device_t *device, int period_time_ms) {
 
 	assert(device->hw_params != NULL);
 
-	device->period_time_ms = period_time;
+	device->period_time_ms = period_time_ms;
 
 	snd_pcm_hw_params_set_period_time(
 		device->device_handle,

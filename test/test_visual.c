@@ -9,6 +9,20 @@
 
 #define ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
 
+uint8_t simple_vad(int16_t samples[], size_t frame) {
+	float energy_thresold = 0.5;
+	float energy = 0;
+
+	for (size_t i = 0; i < frame; i++) {
+		float tmp = (float) samples[i] / 0x7FFF;
+		energy += tmp * tmp;
+	}
+
+	energy /= frame;
+
+	return energy > energy_thresold;
+}
+
 int main() {
 	audio_device_t *device = audio_device_create("pulse");
 
@@ -33,6 +47,10 @@ int main() {
 	while (!WindowShouldClose()) {
 		int16_t buffer[300] = { 0 };
 		unsigned int frame = audio_device_read(device, buffer, ARRAY_LEN(buffer));
+
+		if (simple_vad(buffer, frame)) {
+			printf("Detected human voice\n");
+		}
 
 		BeginDrawing();
 		ClearBackground(WHITE);
