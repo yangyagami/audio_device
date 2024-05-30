@@ -207,7 +207,7 @@ void audio_device_set_period_size(audio_device_t *device, int period_size) {
 		0);
 }
 
-void audio_device_set_period_time(audio_device_t *device, int period_time) {
+void audio_device_set_period_time(audio_device_t *device, int period_time_ms) {
 	assert(device != NULL);
 
 	assert(device->hw_params != NULL);
@@ -217,7 +217,7 @@ void audio_device_set_period_time(audio_device_t *device, int period_time) {
 	snd_pcm_hw_params_set_period_time(
 		device->device_handle,
 		device->hw_params,
-		device->period_time,
+		device->period_time_ms * 1000,
 		0);
 }
 
