@@ -60,9 +60,9 @@ struct audio_device {
 	int channel;
 	int bit_depth;
 	int period_size;
-	int period_time;
+	int period_time_ms;
 	int buffer_size;
-	int buffer_time;
+	int buffer_time_ms;
 };
 
 audio_device_t *audio_device_create(const char *device_name) {
@@ -212,7 +212,7 @@ void audio_device_set_period_time(audio_device_t *device, int period_time_ms) {
 
 	assert(device->hw_params != NULL);
 
-	device->period_time = period_time;
+	device->period_time_ms = period_time;
 
 	snd_pcm_hw_params_set_period_time(
 		device->device_handle,
@@ -239,12 +239,13 @@ void audio_device_set_buffer_time(audio_device_t *device, int time_ms) {
 
 	assert(device->hw_params != NULL);
 
-	device->buffer_time = time_ms;
+	device->buffer_time_ms = time_ms;
 
-	snd_pcm_hw_params_set_buffer_size(
+	snd_pcm_hw_params_set_buffer_time(
 		device->device_handle,
 		device->hw_params,
-		device->buffer_time);
+		device->buffer_time_ms * 1000,
+		0);
 }
 
 void audio_device_set_end(audio_device_t *device) {
