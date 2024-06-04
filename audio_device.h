@@ -37,10 +37,6 @@ int audio_device_get_bit_depth(audio_device_t *device);
 unsigned int audio_device_read(audio_device_t *device, void *buffer, unsigned int frame);
 void audio_device_write(audio_device_t *device, void *buffer, unsigned int frame);
 
-#ifdef __cpluscplus
-}
-#endif
-
 #endif  // AUDIO_DEVICE_AUDIO_DEVICE_H_
 
 #ifdef AUDIO_DEVICE_IMPLEMENTATION
@@ -291,7 +287,7 @@ unsigned int audio_device_read(audio_device_t *device, void *buffer, unsigned in
 		fprintf(stderr, "Cannot read data from device: %s\n",
 			snd_strerror(ret));
 		goto fail;
-	} else if (ret != frame) {
+	} else if ((unsigned int) ret != frame) {
 		fprintf(stderr, "short read, read %d frames\n", ret);
 	}
 
@@ -318,5 +314,9 @@ void audio_device_write(audio_device_t *device, void *buffer, unsigned int frame
 }
 
 #undef AUDIO_DEVICE_AUDIO_DEVICE_FRAMES
+
+#ifdef __cpluscplus
+}
+#endif
 
 #endif  // AUDIO_DEVICE_IMPLEMENTATION
