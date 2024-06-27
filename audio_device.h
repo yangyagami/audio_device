@@ -35,7 +35,7 @@ int audio_device_get_channel(audio_device_t *device);
 int audio_device_get_bit_depth(audio_device_t *device);
 
 unsigned int audio_device_read(audio_device_t *device, void *buffer, unsigned int frame);
-void audio_device_write(audio_device_t *device, void *buffer, unsigned int frame);
+int audio_device_write(audio_device_t *device, void *buffer, unsigned int frame);
 
 #endif  // AUDIO_DEVICE_AUDIO_DEVICE_H_
 
@@ -154,7 +154,7 @@ void audio_device_set_bit_depth(audio_device_t *device, int bit_depth) {
 
 	device->bit_depth = bit_depth;
 
-	snd_pcm_format_t format;
+	snd_pcm_format_t format = SND_PCM_FORMAT_U8;
 	switch (device->bit_depth) {
 		case 8: {
 			format = SND_PCM_FORMAT_U8;
@@ -296,21 +296,29 @@ fail:
 	return 0;
 }
 
-void audio_device_write(audio_device_t *device, void *buffer, unsigned int frame) {
+int audio_device_write(audio_device_t *device, void *buffer, unsigned int frame) {
 	assert(device != NULL);
 
 	int ret = snd_pcm_writei(
 		device->device_handle,
 		buffer,
 		frame);
+
 	if (ret < 0) {
-		fprintf(stderr, "Ret less then 0, do recover\n");
-		ret = snd_pcm_recover(device->device_handle, ret, 0);
+		if (ret == -EBADFD) {
+			fprintf(stderr, "PCM is not in the right state: %s\n",
+				snd_strerror(ret));
+		} else if (ret == -EPIPE || ret == -ESTRPIPE) {
+			fprintf(stderr, "Write failed: %s\n", snd_strerror(ret));
+			ret = snd_pcm_recover(device->device_handle, ret, 0);
+			if (ret < 0) {
+				fprintf(stderr, "Recover failed: %s\n",
+					snd_strerror(ret));
+			}
+		}
 	}
-	if (ret < 0) {
-		fprintf(stderr, "Write data to device failed: %s\n",
-			snd_strerror(ret));
-	}
+
+	return ret;
 }
 
 #undef AUDIO_DEVICE_AUDIO_DEVICE_FRAMES
